@@ -1,0 +1,69 @@
+{
+  "tagFormat": "match-service-v${version}",
+  "branches": ["main", { "name": "develop", "prerelease": "beta" }],
+  "plugins": [
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "preset": "conventionalcommits",
+        "releaseRules": [
+          { "type": "feat", "scope": "match", "release": "minor" },
+          { "type": "fix", "scope": "match", "release": "patch" },
+          { "type": "perf", "scope": "match", "release": "patch" },
+          { "type": "docs", "scope": "match", "release": false },
+          { "type": "style", "scope": "match", "release": false },
+          { "type": "refactor", "scope": "match", "release": "patch" },
+          { "type": "test", "scope": "match", "release": false },
+          { "type": "security", "scope": "match", "release": "patch" },
+          { "type": "chore", "scope": "match", "release": false },
+          { "type": "ci", "scope": "match", "release": false },
+          { "type": "build", "scope": "match", "release": "patch" },
+          { "breaking": true, "scope": "match", "release": "major" }
+        ]
+      }
+    ],
+    [
+      "@semantic-release/release-notes-generator",
+      {
+        "preset": "conventionalcommits",
+        "presetConfig": {
+          "types": [
+            { "type": "feat", "section": "✨ Nouvelles fonctionnalités" },
+            { "type": "fix", "section": "🐛 Corrections" },
+            { "type": "perf", "section": "⚡ Optimisations" },
+            { "type": "refactor", "section": "♻️ Refactoring" },
+            { "type": "docs", "section": "📚 Documentation", "hidden": false },
+            { "type": "security", "section": "🔒 Sécurité", "hidden": false },
+            { "type": "ci", "section": "🔧 CI/CD", "hidden": true },
+            { "type": "chore", "section": "🧹 Maintenance", "hidden": true },
+            { "type": "build", "section": "📦 Build", "hidden": false }
+          ]
+        }
+      }
+    ],
+    [
+      "@semantic-release/changelog",
+      {
+        "changelogFile": "CHANGELOG.md"
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["CHANGELOG.md", "package.json", "package-lock.json"],
+        "message": "chore(match): release v${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ],
+    [
+      "@semantic-release/github",
+      {
+        "assets": [
+          {
+            "path": "Dockerfile",
+            "label": "Match Service Dockerfile v${nextRelease.version}"
+          }
+        ]
+      }
+    ]
+  ]
+}

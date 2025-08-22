@@ -1,0 +1,69 @@
+{
+  "name": "match-service",
+  "version": "1.0.0",
+  "description": "Service de gestion des matchs",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint . --ext .js,.mjs",
+    "lint:fix": "eslint . --ext .js,.mjs --fix",
+    "format": "prettier --check .",
+    "format:fix": "prettier --write .",
+    "validate": "npm run format && npm run lint && npm run test",
+    "prepare-code": "npm run format:fix && npm run lint:fix"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.50.5",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^4.19.2",
+    "express-rate-limit": "^8.0.1",
+    "helmet": "^8.1.0",
+    "joi": "^18.0.0",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "@eslint/compat": "^1.3.2",
+    "@eslint/eslintrc": "^3.3.1",
+    "@eslint/js": "^9.33.0",
+    "@jest/globals": "^30.0.4",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^11.1.0",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^9.2.6",
+    "@semantic-release/release-notes-generator": "^12.1.0",
+    "eslint": "^9.33.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "husky": "^8.0.0",
+    "jest": "^30.0.4",
+    "lint-staged": "^16.1.5",
+    "nodemon": "^3.0.2",
+    "prettier": "^3.6.2",
+    "semantic-release": "^23.0.2",
+    "supertest": "^7.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/play-up-app/PF-match-service.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/play-up-app/PF-match-service/issues"
+  },
+  "homepage": "https://github.com/play-up-app/PF-match-service#readme",
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "*.{js,mjs}": ["npm run prepare-code"]
+  }
+}
