@@ -1,0 +1,86 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 2 * * *" # Exécution quotidienne à 2h du matin
+
+jobs:
+  test-coverage:
+    name: 🧪 Tests & Qualité
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Installation des dépendances
+        run: npm ci
+
+      - name: Génération Prisma Client
+        run: npx prisma generate
+
+      - name: Tests unitaires
+        run: npm run test:coverage
+        env:
+          NODE_ENV: "test"
+
+      - name: Vérification couverture
+        run: |
+          COVERAGE=$(cat coverage/coverage-summary.json | jq -r '.total.lines.pct')
+          if (( $(echo "$COVERAGE < 80" | bc -l) )); then
+            echo "❌ Couverture insuffisante : $COVERAGE%"
+            exit 1
+          fi
+          echo "✅ Couverture : $COVERAGE%"
+
+  build:
+    name: 🐳 Build & Push
+    runs-on: ubuntu-latest
+    needs: test-coverage
+    permissions:
+      contents: read
+      packages: write
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Get Version
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/match-service:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/match-service:latest
