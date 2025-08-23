@@ -4,8 +4,9 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import winston from "winston";
 import cookieParser from "cookie-parser";
-import dotenv from "dotenv";
-dotenv.config();
+import MatchRoute from "./routes/match.route.js";
+import MatchController from "./controllers/match.controller.js";
+import MatchRepository from "./repositories/match.repository.js";
 
 const logger = winston.createLogger({
   level: "info",
@@ -37,6 +38,12 @@ app.use(limiter);
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });
 });
+
+const matchRepository = new MatchRepository();
+const matchController = new MatchController(matchRepository);
+const matchRoute = new MatchRoute(matchController);
+
+app.use("/api/match", matchRoute.router);
 
 app.listen(PORT, () => {
   logger.info(`Service de match démarré sur le port ${PORT}`);
