@@ -1,7 +1,10 @@
 import supabase from "../config/supabase.js";
+import logger from "../config/logger.js";
 
 export default class MatchRepository {
   async createMatchFromAi(aiMatchId, organizerId) {
+    logger.debug("Récupération des données du match IA", { aiMatchId });
+
     const { data: aiMatchData, error: aiMatchError } = await supabase
       .from("ai_generated_match")
       .select("*, ai_tournament_planning!inner(tournament_id)")
@@ -9,10 +12,18 @@ export default class MatchRepository {
       .single();
 
     if (aiMatchError || !aiMatchData) {
+      logger.error("Match IA non trouvé", {
+        aiMatchId,
+        error: aiMatchError?.message,
+      });
       throw new Error("Ai generated match not found");
     }
 
     if (aiMatchData.status == "completed") {
+      logger.warn("Tentative de création d'un match IA déjà complété", {
+        aiMatchId,
+        status: aiMatchData.status,
+      });
       throw new Error("Ai generated match is already completed");
     }
 
@@ -20,6 +31,11 @@ export default class MatchRepository {
       !aiMatchData.resolved_equipe_a_id ||
       !aiMatchData.resolved_equipe_b_id
     ) {
+      logger.warn("Équipes non résolues pour le match IA", {
+        aiMatchId,
+        teamA: aiMatchData.resolved_equipe_a_id,
+        teamB: aiMatchData.resolved_equipe_b_id,
+      });
       throw new Error("Teams are not resolved yet");
     }
 
@@ -31,8 +47,20 @@ export default class MatchRepository {
       .single();
 
     if (!tournament || tournament.organizer_id !== organizerId) {
+      logger.error("Tentative non autorisée de création de match", {
+        aiMatchId,
+        organizerId,
+        tournamentOrganizerId: tournament?.organizer_id,
+      });
       throw new Error("Unauthorized: Not tournament organizer");
     }
+
+    logger.info("Création du match en base de données", {
+      aiMatchId,
+      tournamentId: aiMatchData.ai_tournament_planning.tournament_id,
+      teamA: aiMatchData.resolved_equipe_a_id,
+      teamB: aiMatchData.resolved_equipe_b_id,
+    });
 
     // Créer le match avec toutes les données du schéma
     const { data: match, error } = await supabase
@@ -76,7 +104,18 @@ export default class MatchRepository {
       `,
       )
       .single();
-    if (error) throw new Error(error.message);
+    if (error) {
+      logger.error("Erreur lors de la création du match en base", {
+        error: error.message,
+        aiMatchId,
+      });
+      throw new Error(error.message);
+    }
+
+    logger.info("Match créé avec succès, mise à jour du statut IA", {
+      matchId: match.id,
+      aiMatchId,
+    });
 
     await supabase
       .from("ai_generated_match")
@@ -85,21 +124,31 @@ export default class MatchRepository {
       })
       .eq("source_ai_match_id", aiMatchId);
 
+    logger.info("Match IA marqué comme complété", { aiMatchId });
     return match;
   }
 
   async startMatch(matchId, playerId) {
-    console.log("startMatch", matchId);
+    logger.debug("Démarrage du match", { matchId, playerId });
+
     const { data: match, error } = await supabase
       .from("match")
       .select("*, tournament(*), team_a:team_a_id(*), team_b:team_b_id(*)")
       .eq("id", matchId)
       .single();
 
-    if (error || !match) throw new Error("Match not found");
+    if (error || !match) {
+      logger.error("Match non trouvé", { matchId, error: error?.message });
+      throw new Error("Match not found");
+    }
 
-    if (match.status !== "ready")
+    if (match.status !== "ready") {
+      logger.warn("Tentative de démarrage d'un match non prêt", {
+        matchId,
+        currentStatus: match.status,
+      });
       throw new Error("Match is not ready to start");
+    }
 
     await this.validateMatchPermission(playerId, match);
 
@@ -115,7 +164,18 @@ export default class MatchRepository {
       .select("*, tournament(*), team_a:team_a_id(*), team_b:team_b_id(*)")
       .single();
 
-    if (updateError) throw new Error(updateError.message);
+    if (updateError) {
+      logger.error("Erreur lors de la mise à jour du statut du match", {
+        matchId,
+        error: updateError.message,
+      });
+      throw new Error(updateError.message);
+    }
+
+    logger.info("Match démarré avec succès", {
+      matchId: updatedMatch.id,
+      actualStartTime: updatedMatch.actual_start_time,
+    });
 
     return updatedMatch;
   }
@@ -212,5 +272,85 @@ export default class MatchRepository {
       (team1Score >= minWinScore && team1Score - team2Score >= minLeadToWin) ||
       (team2Score >= minWinScore && team2Score - team1Score >= minLeadToWin)
     );
+  }
+
+  async createMatchsFromAi(tournamentId, organizerId) {
+    logger.info("Récupération des matchs IA pour un tournoi", { tournamentId });
+
+    const { data: aiMatches, error: aiMatchesError } = await supabase
+      .from("ai_generated_match")
+      .select("id, ai_tournament_planning!inner(tournament_id)")
+      .eq("ai_tournament_planning.tournament_id", tournamentId);
+
+    if (aiMatchesError) {
+      logger.error("Erreur lors de la récupération des matchs IA", {
+        tournamentId,
+        error: aiMatchesError.message,
+      });
+      throw new Error(aiMatchesError.message);
+    }
+
+    logger.info("Matchs IA récupérés avec succès", {
+      tournamentId,
+      matchsCount: aiMatches?.length || 0,
+    });
+
+    for (const aiMatch of aiMatches) {
+      await this.createMatchFromAi(aiMatch.id, organizerId);
+    }
+    return true;
+  }
+
+  async getMatchsByTournamentId(tournamentId) {
+    try {
+      const { data: matchs, error: matchsError } = await supabase
+        .from("match")
+        .select("*")
+        .eq("tournament_id", tournamentId);
+
+      if (matchsError) throw new Error(matchsError.message);
+
+      return matchs;
+    } catch (error) {
+      logger.error("Erreur lors de la récupération des matchs", {
+        tournamentId,
+        error: error.message,
+      });
+      throw new Error(error.message);
+    }
+  }
+
+  async updateMatchStatus(matchId, status) {
+    try {
+      // check status
+      if (
+        status !== "scheduled" &&
+        status !== "ready" &&
+        status !== "in_progress" &&
+        status !== "completed" &&
+        status !== "cancelled"
+      ) {
+        throw new Error("Status invalide");
+      }
+      // update match status
+      const { data: updatedMatch, error: updateError } = await supabase
+        .from("match")
+        .update({
+          status: status,
+        })
+        .eq("id", matchId)
+        .select("id, status")
+        .single();
+
+      if (updateError) throw new Error(updateError.message);
+
+      return updatedMatch;
+    } catch (error) {
+      logger.error("Erreur lors de la mise à jour du statut du match", {
+        matchId,
+        error: error.message,
+      });
+      throw new Error(error.message);
+    }
   }
 }

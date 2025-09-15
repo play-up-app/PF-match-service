@@ -62,4 +62,61 @@ export default class MatchController {
       });
     }
   }
+
+  async createMatchsFromAi(req, res) {
+    try {
+      console.log("createMatchsFromAi", req.params.tournamentId);
+      const matchs = await this.matchRepository.createMatchsFromAi(
+        req.params.tournamentId,
+        "9d78e50a-b679-40e1-8625-cc344b8856ac",
+      );
+      res.status(200).json({
+        success: true,
+        message: "Matchs created successfully",
+        data: matchs,
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+
+  async getMatchsByTournamentId(req, res) {
+    try {
+      const matchs = await this.matchRepository.getMatchsByTournamentId(
+        req.params.tournamentId,
+      );
+      res.status(200).json({
+        success: true,
+        message: "Matchs fetched successfully",
+        data: matchs,
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+
+  async updateMatchStatus(req, res) {
+    try {
+      const match = await this.matchRepository.updateMatchStatus(
+        req.params.matchId,
+        req.body.status,
+      );
+      res.status(200).json({
+        success: true,
+        message: "Match status updated successfully",
+        data: match,
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
 }

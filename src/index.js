@@ -2,7 +2,7 @@ import express from "express";
 import corsOptions from "./middleware/cors.js";
 import helmetConfig from "./middleware/helmet.js";
 import globalLimiter from "./middleware/rateLimiter.js";
-import winston from "winston";
+import logger from "./config/logger.js";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import dotenv from "dotenv";
@@ -12,16 +12,6 @@ import MatchController from "./controllers/match.controller.js";
 import MatchRepository from "./repositories/match.repository.js";
 
 dotenv.config();
-
-const logger = winston.createLogger({
-  level: "info",
-  format: winston.format.json(),
-  transports: [
-    new winston.transports.Console({
-      format: winston.format.simple(),
-    }),
-  ],
-});
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -56,7 +46,7 @@ const matchController = new MatchController(matchRepository);
 const matchRoute = new MatchRoute(matchController);
 
 // Routes
-app.use("/api", matchRoute.router);
+app.use("/api/match", matchRoute.router);
 
 // Middleware de gestion d'erreur global
 app.use((err, req, res, next) => {
