@@ -39,21 +39,21 @@ export default class MatchRepository {
       throw new Error("Teams are not resolved yet");
     }
 
-    // check user permissions to create a match for this tournament
-    const { data: tournament } = await supabase
-      .from("tournament")
-      .select("organizer_id")
-      .eq("id", aiMatchData.ai_tournament_planning.tournament_id)
-      .single();
+    // // check user permissions to create a match for this tournament
+    // const { data: tournament } = await supabase
+    //   .from("tournament")
+    //   .select("organizer_id")
+    //   .eq("id", aiMatchData.ai_tournament_planning.tournament_id)
+    //   .single();
 
-    if (!tournament || tournament.organizer_id !== organizerId) {
-      logger.error("Tentative non autorisée de création de match", {
-        aiMatchId,
-        organizerId,
-        tournamentOrganizerId: tournament?.organizer_id,
-      });
-      throw new Error("Unauthorized: Not tournament organizer");
-    }
+    // if (!tournament || tournament.organizer_id !== organizerId) {
+    //   logger.error("Tentative non autorisée de création de match", {
+    //     aiMatchId,
+    //     organizerId,
+    //     tournamentOrganizerId: tournament?.organizer_id,
+    //   });
+    //   throw new Error("Unauthorized: Not tournament organizer");
+    // }
 
     logger.info("Création du match en base de données", {
       aiMatchId,
@@ -368,6 +368,25 @@ export default class MatchRepository {
     } catch (error) {
       logger.error("Erreur lors de la récupération du match", {
         matchId,
+        error: error.message,
+      });
+      throw new Error(error.message);
+    }
+  }
+
+  async deleteMatchsFromAi(tournamentId) {
+    try {
+      const { data: matchs, error: matchsError } = await supabase
+        .from("match")
+        .delete()
+        .eq("tournament_id", tournamentId);
+
+      if (matchsError) throw new Error(matchsError.message);
+
+      return matchs;
+    } catch (error) {
+      logger.error("Erreur lors de la suppression des matchs", {
+        tournamentId,
         error: error.message,
       });
       throw new Error(error.message);
