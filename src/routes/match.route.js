@@ -29,5 +29,8 @@ export default class MatchRoute {
     this.router.patch("/:matchId/status", (req, res) =>
       this.matchController.updateMatchStatus(req, res),
     );
+    this.router.delete("/from-ai/tournament/:tournamentId", (req, res) =>
+      this.matchController.deleteMatchsFromAi(req, res),
+    );
   }
 }

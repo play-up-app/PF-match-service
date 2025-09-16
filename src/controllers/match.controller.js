@@ -135,4 +135,22 @@ export default class MatchController {
       });
     }
   }
+
+  async deleteMatchsFromAi(req, res) {
+    try {
+      const matchs = await this.matchRepository.deleteMatchsFromAi(
+        req.params.tournamentId,
+      );
+      res.status(200).json({
+        success: true,
+        message: "Matchs deleted successfully",
+        data: matchs,
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
 }
