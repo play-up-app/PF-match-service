@@ -250,6 +250,47 @@ describe("MatchRepository", () => {
         matchRepository.startMatch(validUUID, validUUID),
       ).rejects.toThrow("Match is not ready to start");
     });
+
+    it("devrait échouer si la mise à jour du statut échoue", async () => {
+      mockSupabaseClient.from.mockImplementation(table => {
+        switch (table) {
+          case "match": {
+            return {
+              select: jest.fn().mockReturnThis(),
+              eq: jest.fn().mockReturnThis(),
+              single: jest
+                .fn()
+                .mockResolvedValueOnce({ data: { ...mockMatch } }),
+              update: jest.fn().mockReturnValue({
+                eq: jest.fn().mockReturnThis(),
+                select: jest.fn().mockReturnThis(),
+                single: jest
+                  .fn()
+                  .mockResolvedValue({ error: new Error("update failed") }),
+              }),
+            };
+          }
+          case "team": {
+            return {
+              select: jest.fn().mockReturnThis(),
+              eq: jest.fn().mockResolvedValue({ data: [{ id: "team-1" }] }),
+            };
+          }
+          case "team_member": {
+            return {
+              select: jest.fn().mockReturnThis(),
+              eq: jest.fn().mockReturnThis(),
+              in: jest.fn().mockReturnThis(),
+              single: jest.fn().mockResolvedValue({ data: { id: "member-1" } }),
+            };
+          }
+        }
+      });
+
+      await expect(
+        matchRepository.startMatch(validUUID, validUUID),
+      ).rejects.toThrow("update failed");
+    });
   });
 
   describe("updateScore", () => {
@@ -532,6 +573,179 @@ describe("MatchRepository", () => {
         matchRepository.validateMatchPermission("unauthorized-user", mockMatch),
       ).rejects.toThrow(
         "Player is not a member of any team in this tournament",
+      );
+    });
+  });
+
+  describe("createMatchFromAi - sécurité organisateur", () => {
+    it("devrait refuser si l'utilisateur n'est pas l'organisateur", async () => {
+      const aiData = {
+        id: validUUID,
+        status: "pending",
+        resolved_equipe_a_id: validUUID,
+        resolved_equipe_b_id: validUUID,
+        terrain: 1,
+        debut_horaire: "2024-03-21T14:00:00Z",
+        phase: "group",
+        journee: 1,
+        match_id_ai: "match_1",
+        poule_id: "poule_1",
+        ai_tournament_planning: { tournament_id: validUUID },
+      };
+
+      mockSupabaseClient.from.mockImplementation(table => {
+        if (table === "ai_generated_match") {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            single: jest.fn().mockResolvedValue({ data: aiData }),
+          };
+        }
+        if (table === "tournament") {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            single: jest
+              .fn()
+              .mockResolvedValue({ data: { organizer_id: "other" } }),
+          };
+        }
+      });
+
+      await expect(
+        matchRepository.createMatchFromAi(validUUID, validUUID),
+      ).rejects.toThrow("Unauthorized: Not tournament organizer");
+    });
+  });
+
+  describe("createMatchsFromAi", () => {
+    it("devrait créer les matchs pour chaque entrée IA", async () => {
+      const spy = jest
+        .spyOn(matchRepository, "createMatchFromAi")
+        .mockResolvedValue({ id: "m1" });
+
+      mockSupabaseClient.from.mockImplementation(table => {
+        if (table === "ai_generated_match") {
+          const chain = {
+            select: jest.fn(),
+            eq: jest.fn(),
+          };
+          chain.select.mockReturnValue(chain);
+          chain.eq.mockResolvedValue({
+            data: [
+              {
+                id: "ai1",
+                ai_tournament_planning: { tournament_id: validUUID },
+              },
+            ],
+            error: null,
+          });
+          return chain;
+        }
+      });
+
+      const result = await matchRepository.createMatchsFromAi(
+        validUUID,
+        validUUID,
+      );
+      expect(result).toBe(true);
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith("ai1", validUUID);
+    });
+
+    it("devrait échouer si la récupération des matchs IA échoue", async () => {
+      mockSupabaseClient.from.mockImplementation(table => {
+        if (table === "ai_generated_match") {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest
+              .fn()
+              .mockResolvedValue({ error: new Error("fetch error") }),
+          };
+        }
+      });
+
+      await expect(
+        matchRepository.createMatchsFromAi(validUUID, validUUID),
+      ).rejects.toThrow("fetch error");
+    });
+  });
+
+  describe("getMatchsByTournamentId", () => {
+    it("devrait retourner la liste des matchs", async () => {
+      mockSupabaseClient.from.mockImplementation(table => {
+        if (table === "match") {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ data: [{ id: "m1" }] }),
+          };
+        }
+      });
+
+      const result = await matchRepository.getMatchsByTournamentId(validUUID);
+      expect(result).toEqual([{ id: "m1" }]);
+    });
+
+    it("devrait lever une erreur si la requête échoue", async () => {
+      mockSupabaseClient.from.mockImplementation(table => {
+        if (table === "match") {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({ error: new Error("db error") }),
+          };
+        }
+      });
+
+      await expect(
+        matchRepository.getMatchsByTournamentId(validUUID),
+      ).rejects.toThrow("db error");
+    });
+  });
+
+  describe("updateMatchStatus", () => {
+    it("devrait lever une erreur pour un status invalide", async () => {
+      await expect(
+        matchRepository.updateMatchStatus(validUUID, "weird"),
+      ).rejects.toThrow("Status invalide");
+    });
+
+    it("devrait lever une erreur si l'update échoue", async () => {
+      mockSupabaseClient.from.mockImplementation(table => {
+        if (table === "match") {
+          return {
+            update: jest.fn().mockReturnValue({
+              eq: jest.fn().mockReturnThis(),
+              select: jest.fn().mockReturnThis(),
+              single: jest
+                .fn()
+                .mockResolvedValue({ error: new Error("update err") }),
+            }),
+          };
+        }
+      });
+
+      await expect(
+        matchRepository.updateMatchStatus(validUUID, "ready"),
+      ).rejects.toThrow("update err");
+    });
+  });
+
+  describe("getMatchById", () => {
+    it("devrait lever une erreur si la requête échoue", async () => {
+      mockSupabaseClient.from.mockImplementation(table => {
+        if (table === "match") {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            single: jest
+              .fn()
+              .mockResolvedValue({ error: new Error("not found") }),
+          };
+        }
+      });
+
+      await expect(matchRepository.getMatchById(validUUID)).rejects.toThrow(
+        "not found",
       );
     });
   });

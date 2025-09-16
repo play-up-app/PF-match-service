@@ -7,8 +7,6 @@ export default {
   coverageDirectory: "./coverage",
   collectCoverageFrom: [
     "src/repositories/**/*.js",
-    // 'src/controllers/**/*.js',
-    // 'src/middleware/**/*.js',
     "!**/node_modules/**",
     "!**/vendor/**",
   ],
