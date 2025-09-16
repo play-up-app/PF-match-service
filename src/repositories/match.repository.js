@@ -353,4 +353,24 @@ export default class MatchRepository {
       throw new Error(error.message);
     }
   }
+
+  async getMatchById(matchId) {
+    try {
+      const { data: match, error: matchError } = await supabase
+        .from("match")
+        .select("*")
+        .eq("id", matchId)
+        .single();
+
+      if (matchError) throw new Error(matchError.message);
+
+      return match;
+    } catch (error) {
+      logger.error("Erreur lors de la récupération du match", {
+        matchId,
+        error: error.message,
+      });
+      throw new Error(error.message);
+    }
+  }
 }

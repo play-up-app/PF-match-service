@@ -11,6 +11,9 @@ export default class MatchRoute {
     this.router.get("/tournament/:tournamentId", (req, res) =>
       this.matchController.getMatchsByTournamentId(req, res),
     );
+    this.router.get("/:matchId", (req, res) =>
+      this.matchController.getMatchById(req, res),
+    );
     this.router.post("/from-ai/:aiMatchId", (req, res) =>
       this.matchController.createMatchFromAi(req, res),
     );

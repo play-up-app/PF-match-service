@@ -119,4 +119,20 @@ export default class MatchController {
       });
     }
   }
+
+  async getMatchById(req, res) {
+    try {
+      const match = await this.matchRepository.getMatchById(req.params.matchId);
+      res.status(200).json({
+        success: true,
+        message: "Match fetched successfully",
+        data: match,
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
 }
