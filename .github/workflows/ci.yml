@@ -25,9 +25,6 @@ jobs:
       - name: Installation des dépendances
         run: npm ci
 
-      - name: Génération Prisma Client
-        run: npx prisma generate
-
       - name: Tests unitaires
         run: npm run test:coverage
         env:
